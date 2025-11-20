@@ -163,9 +163,9 @@
             this.lineCountComboBox.Font = new System.Drawing.Font("Arial", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lineCountComboBox.FormattingEnabled = true;
             this.lineCountComboBox.Items.AddRange(new object[] {
-            "1 dòng (mặc định)",
-            "2 dòng",
-            "3 dòng"});
+            "Lấy 1 kết quả (mặc định)",
+            "Lấy 2 kết quả ",
+            "Lấy 3 kết quả "});
             this.lineCountComboBox.Location = new System.Drawing.Point(196, 6);
             this.lineCountComboBox.Name = "lineCountComboBox";
             this.lineCountComboBox.Size = new System.Drawing.Size(226, 24);

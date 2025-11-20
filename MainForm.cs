@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+
 
 namespace DATAFILTER
 {
@@ -360,17 +360,20 @@ namespace DATAFILTER
                     if (oldStartIndex >= 0)
                     {
                         textBox.Select(oldStartIndex, textBox.Lines[lastHighlightedLine].Length);
-                        textBox.SelectionBackColor = Color.White;
+                        textBox.SelectionBackColor = textBox.BackColor; // Sử dụng màu nền mặc định
                     }
                 }
 
                 // Highlight dòng mới
                 int startIndex = textBox.GetFirstCharIndexFromLine(lineIndex);
+                // Trong HighlightLineWithColor, phần highlight dòng mới:
                 if (startIndex >= 0)
                 {
                     textBox.Select(startIndex, textBox.Lines[lineIndex].Length);
                     textBox.SelectionBackColor = Color.Orange;
-                    textBox.ScrollToCaret();
+
+                    // GỌI PHƯƠNG THỨC MỚI - đảm bảo dòng ở giữa màn hình
+                    EnsureLineIsVisible(textBox, lineIndex);
                 }
 
                 // Cập nhật lastHighlightedLine
@@ -382,6 +385,64 @@ namespace DATAFILTER
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Lỗi HighlightLineWithColor: {ex.Message}");
+            }
+        }
+        //Đảm bảo dòng hiển thị ở vị trí mong muốn (1/3 từ trên xuống)
+        private void EnsureLineIsVisible(RichTextBox textBox, int lineIndex)
+        {
+            if (lineIndex < 0 || lineIndex >= textBox.Lines.Length)
+                return;
+
+            // Tạm dừng redraw để tránh nhấp nháy
+            SendMessage(textBox.Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero);
+
+            try
+            {
+                // Tính toán số dùng có thể hiển thị
+                int visibleLines = GetVisibleLineCount(textBox);
+
+                if (visibleLines <= 0) return;
+
+                // Đặt dòng được chọn ở vị trí 1/3 từ trên xuống (giữa màn hình)
+                int targetLine = Math.Max(0, lineIndex - visibleLines / 3);
+
+                // Đảm bảo không scroll quá xa
+                int totalLines = textBox.Lines.Length;
+                if (targetLine + visibleLines > totalLines)
+                {
+                    targetLine = Math.Max(0, totalLines - visibleLines);
+                }
+
+                // Scroll đến dòng mục tiêu
+                int targetCharIndex = textBox.GetFirstCharIndexFromLine(targetLine);
+                if (targetCharIndex >= 0)
+                {
+                    textBox.Select(targetCharIndex, 0);
+                    textBox.ScrollToCaret();
+                }
+            }
+            finally
+            {
+                // Khôi phục redraw
+                SendMessage(textBox.Handle, WM_SETREDRAW, (IntPtr)1, IntPtr.Zero);
+                textBox.Invalidate();
+            }
+        }
+
+        // PHƯƠNG THỨC TÍNH SỐ DÒNG HIỂN THỊ CHÍNH XÁC HƠN
+        private int GetVisibleLineCount(RichTextBox textBox)
+        {
+            using (Graphics g = textBox.CreateGraphics())
+            {
+                // Lấy chiều cao client trừ đi padding
+                int clientHeight = textBox.ClientSize.Height - textBox.Padding.Top - textBox.Padding.Bottom;
+
+                // Lấy chiều cao của một dòng (bao gồm cả line spacing)
+                int lineHeight = TextRenderer.MeasureText(g, "A", textBox.Font).Height;
+
+                if (lineHeight == 0) return 10; // Fallback value
+
+                return clientHeight / lineHeight;
             }
         }
 
@@ -659,7 +720,7 @@ namespace DATAFILTER
         {
             // Khôi phục trạng thái UI
             filterButton.Enabled = true;
-            filterButton.Text = "Lọc dữ liệu";
+            filterButton.Text = "LỌC DỮ LIỆU";
             Cursor = Cursors.Default;
 
             if (e.Error != null)
@@ -737,9 +798,16 @@ namespace DATAFILTER
                 {
                     try
                     {
-                        File.WriteAllText(saveDialog.FileName, resultTextBox.Text);
-                        MessageBox.Show($"Xuất file thành công!\n{saveDialog.FileName}",
-                            "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        // SỬA: Sử dụng phương pháp đúng để lấy text với các dòng mới
+                        string textToSave = resultTextBox.Text;
+
+                        // Đảm bảo ký tự xuống dòng đúng định dạng
+                        textToSave = textToSave.Replace("\n", Environment.NewLine);
+
+                        File.WriteAllText(saveDialog.FileName, textToSave, Encoding.UTF8);
+
+                        // THÊM: Hiển thị message box với nút mở thư mục
+                        ShowExportSuccessMessage(saveDialog.FileName);
                     }
                     catch (Exception ex)
                     {
@@ -747,6 +815,147 @@ namespace DATAFILTER
                             "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
+            }
+        }
+        // PHƯƠNG THỨC HIỂN THỊ THÔNG BÁO THÀNH CÔNG
+        private void ShowExportSuccessMessage(string filePath)
+        {
+            string fileName = Path.GetFileName(filePath);
+
+            using (var customForm = new System.Windows.Forms.Form())
+            {
+                customForm.Text = "Xuất File Thành Công";
+                customForm.Size = new System.Drawing.Size(350, 200);
+                customForm.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
+                customForm.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
+                customForm.MaximizeBox = false;
+                customForm.MinimizeBox = false;
+                customForm.ShowInTaskbar = false;
+
+                // Label thông báo 1
+                var label1 = new System.Windows.Forms.Label
+                {
+                    Text = "Đã xuất file thành công!",
+                    Location = new System.Drawing.Point(20, 15),
+                    Size = new System.Drawing.Size(400, 20),
+                    TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
+                    Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold)
+                };
+
+                // Label "File: "
+                var label2 = new System.Windows.Forms.Label
+                {
+                    Text = "Tên file:",
+                    Location = new System.Drawing.Point(20, 45),
+                    Size = new System.Drawing.Size(65, 20),
+                    TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
+                    Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)))
+                };
+
+                // Label tên file (in đậm)
+                var fileNameLabel = new System.Windows.Forms.Label
+                {
+                    Text = fileName,
+                    Location = new System.Drawing.Point(80, 45),
+                    Size = new System.Drawing.Size(350, 20),
+                    TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
+                    Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0))),
+                    ForeColor = System.Drawing.Color.Purple
+                };
+
+                // Label câu hỏi
+                var label3 = new System.Windows.Forms.Label
+                {
+                    Text = "Bạn có muốn mở thư mục chứa file không?",
+                    Location = new System.Drawing.Point(20, 75),
+                    Size = new System.Drawing.Size(400, 20),
+                    TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
+                    Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold)
+                };
+
+                // Nút "Có"
+                var yesButton = new System.Windows.Forms.Button
+                {
+                    Text = "&Có",
+                    Location = new System.Drawing.Point(80, 120),
+                    Size = new System.Drawing.Size(80, 30),
+                    DialogResult = System.Windows.Forms.DialogResult.Yes,
+                    Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold)
+                };
+
+                // Nút "Không"
+                var noButton = new System.Windows.Forms.Button
+                {
+                    Text = "&Không",
+                    Location = new System.Drawing.Point(180, 120),
+                    Size = new System.Drawing.Size(80, 30),
+                    DialogResult = System.Windows.Forms.DialogResult.No,
+                    Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold)
+                };
+
+                yesButton.Click += (s, e) => { customForm.DialogResult = System.Windows.Forms.DialogResult.Yes; };
+                noButton.Click += (s, e) => { customForm.DialogResult = System.Windows.Forms.DialogResult.No; };
+
+                customForm.Controls.Add(label1);
+                customForm.Controls.Add(label2);
+                customForm.Controls.Add(fileNameLabel);
+                customForm.Controls.Add(label3);
+                customForm.Controls.Add(yesButton);
+                customForm.Controls.Add(noButton);
+
+                customForm.AcceptButton = yesButton;
+                customForm.CancelButton = noButton;
+
+                var result = customForm.ShowDialog();
+
+                if (result == System.Windows.Forms.DialogResult.Yes)
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{filePath}\"");
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowSilentError($"Không thể mở thư mục: {ex.Message}");
+                    }
+                }
+            }
+        }
+
+        // PHƯƠNG THỨC HIỂN THỊ LỖI KHÔNG ÂM THANH
+        private void ShowSilentError(string message)
+        {
+            using (var errorForm = new System.Windows.Forms.Form())
+            {
+                errorForm.Text = "Lỗi";
+                errorForm.Size = new System.Drawing.Size(350, 150);
+                errorForm.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
+                errorForm.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
+                errorForm.MaximizeBox = false;
+                errorForm.MinimizeBox = false;
+                errorForm.ShowInTaskbar = false;
+
+                var label = new System.Windows.Forms.Label
+                {
+                    Text = message,
+                    Location = new System.Drawing.Point(20, 20),
+                    Size = new System.Drawing.Size(300, 50),
+                    TextAlign = System.Drawing.ContentAlignment.MiddleLeft
+                };
+
+                var okButton = new System.Windows.Forms.Button
+                {
+                    Text = "OK",
+                    Location = new System.Drawing.Point(130, 80),
+                    Size = new System.Drawing.Size(80, 30),
+                    DialogResult = System.Windows.Forms.DialogResult.OK
+                };
+
+                okButton.Click += (s, e) => { errorForm.Close(); };
+                errorForm.Controls.Add(label);
+                errorForm.Controls.Add(okButton);
+                errorForm.AcceptButton = okButton;
+                errorForm.ShowDialog();
             }
         }
         #endregion
