@@ -32,7 +32,6 @@
             // 
             // inputTextBox
             // 
-            this.inputTextBox.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.inputTextBox.Dock = System.Windows.Forms.DockStyle.Top;
             this.inputTextBox.Font = new System.Drawing.Font("Segoe UI Semibold", 11.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.inputTextBox.ForeColor = System.Drawing.Color.Gray;
@@ -40,7 +39,7 @@
             this.inputTextBox.Name = "inputTextBox";
             this.inputTextBox.Size = new System.Drawing.Size(429, 335);
             this.inputTextBox.TabIndex = 0;
-            this.inputTextBox.Text = "";
+            this.inputTextBox.Text = "Nhập dữ liệu đầu vào";
             this.inputTextBox.WordWrap = false;
             this.inputTextBox.TextChanged += new System.EventHandler(this.InputTextBox_TextChanged);
             // 
@@ -60,7 +59,7 @@
             // 
             // resultTextBox
             // 
-            this.resultTextBox.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.resultTextBox.BackColor = System.Drawing.SystemColors.Window;
             this.resultTextBox.Dock = System.Windows.Forms.DockStyle.Fill;
             this.resultTextBox.Font = new System.Drawing.Font("Segoe UI Semibold", 11.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.resultTextBox.Location = new System.Drawing.Point(0, 395);
@@ -68,7 +67,7 @@
             this.resultTextBox.ReadOnly = true;
             this.resultTextBox.Size = new System.Drawing.Size(429, 313);
             this.resultTextBox.TabIndex = 2;
-            this.resultTextBox.Text = "";
+            this.resultTextBox.Text = "Hiển thị kết quả";
             this.resultTextBox.WordWrap = false;
             // 
             // inputCountLabel

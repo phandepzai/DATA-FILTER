@@ -1,4 +1,5 @@
-﻿using System;
+﻿
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
@@ -8,13 +9,13 @@ using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
-
 namespace DATAFILTER
 {
     public partial class MainForm : Form
     {
+        #region KHAI BÁO CÁC BIẾN
         private readonly Color evenRowColor = Color.White;
-        private readonly Color oddRowColor = Color.FromArgb(220, 220, 220); // Xám nhạt
+        private readonly Color oddRowColor = Color.FromArgb(220, 220, 220); // Màu xám nhạt
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
         private const int WM_SETREDRAW = 0x000B;
@@ -23,10 +24,17 @@ namespace DATAFILTER
         private int lastHighlightedLineResult = -1;
         private const int LARGE_DATA_THRESHOLD = 5000;
 
-        #region CONSTRUCTOR AND INITIALIZATION
+        // Biến để theo dõi trạng thái placeholder
+        private bool isInputPlaceholder = true;
+        private bool isResultPlaceholder = true;
+        #endregion
+
+        #region PHẦN KHƠI TẠO CHÍNH
         public MainForm()
         {
             InitializeComponent();
+            inputTextBox.TextChanged += InputTextBox_TextChanged;
+            resultTextBox.TextChanged += ResultTextBox_TextChanged;
 
             // Tắt tự động xuống dòng
             inputTextBox.WordWrap = false;
@@ -41,7 +49,7 @@ namespace DATAFILTER
             // Tắt context menu mặc định
             inputTextBox.ContextMenuStrip = null;
             resultTextBox.ContextMenuStrip = null;
-          
+
             SetPlaceholder(inputTextBox, "Paste dữ liệu vào đây...");
             SetPlaceholder(resultTextBox, "Kết quả sẽ hiển thị ở đây...");
 
@@ -61,6 +69,7 @@ namespace DATAFILTER
 
             inputTextBox.MouseClick += InputTextBox_MouseClick;
             resultTextBox.MouseClick += ResultTextBox_MouseClick;
+
         }
         #endregion
 
@@ -78,8 +87,11 @@ namespace DATAFILTER
                     pastedText = pastedText.Replace("\r\n", "\n");
                     pastedText = pastedText.Replace("\r", "\n");
                     pastedText = pastedText.Trim();
-                    inputTextBox.Text = pastedText;
+
+                    // SỬA: Sử dụng phương thức mới
+                    SetTextWithIndent(inputTextBox, pastedText);
                     inputTextBox.ForeColor = Color.Black;
+                    isInputPlaceholder = false;
                 }
                 catch (Exception ex)
                 {
@@ -91,6 +103,7 @@ namespace DATAFILTER
             {
                 inputTextBox.Clear();
                 SetPlaceholder(inputTextBox, "Paste dữ liệu vào đây...");
+                isInputPlaceholder = true;
                 UpdateLineCount();
             });
 
@@ -110,6 +123,7 @@ namespace DATAFILTER
             {
                 resultTextBox.Clear();
                 SetPlaceholder(resultTextBox, "Kết quả sẽ hiển thị ở đây...");
+                isResultPlaceholder = true;
                 UpdateLineCount();
             });
 
@@ -132,12 +146,14 @@ namespace DATAFILTER
                     string pastedText = Clipboard.GetText();
 
                     // Loại bỏ ký tự không cần thiết
-                    pastedText = pastedText.Replace("\r\n", "\n");  // Normalize newlines
+                    pastedText = pastedText.Replace("\r\n", "\n");
                     pastedText = pastedText.Replace("\r", "\n");
                     pastedText = pastedText.Trim();
 
-                    inputTextBox.Text = pastedText;
+                    // SỬA: Sử dụng phương thức mới
+                    SetTextWithIndent(inputTextBox, pastedText);
                     inputTextBox.ForeColor = Color.Black;
+                    isInputPlaceholder = false;
                 }
                 catch (Exception ex)
                 {
@@ -145,29 +161,7 @@ namespace DATAFILTER
                 }
             }
         }
-        /*
-        private void SetPlaceholder(RichTextBox textBox, string placeholder)
-        {
-            textBox.Text = placeholder;
-            textBox.ForeColor = Color.Gray;
-            textBox.GotFocus += (sender, e) =>
-            {
-                if (textBox.Text == placeholder)
-                {
-                    textBox.Text = "";
-                    textBox.ForeColor = Color.Black;
-                }
-            };
-            textBox.LostFocus += (sender, e) =>
-            {
-                if (string.IsNullOrWhiteSpace(textBox.Text))
-                {
-                    textBox.Text = placeholder;
-                    textBox.ForeColor = Color.Gray;
-                }
-            };
-        }
-        */
+
         private void SetPlaceholder(RichTextBox textBox, string placeholder)
         {
             textBox.Text = placeholder;
@@ -180,7 +174,8 @@ namespace DATAFILTER
 
             textBox.GotFocus += (sender, e) =>
             {
-                if (textBox.Text == placeholder)
+                if ((textBox == inputTextBox && isInputPlaceholder) ||
+                    (textBox == resultTextBox && isResultPlaceholder))
                 {
                     textBox.Clear();
                     textBox.ForeColor = Color.Black;
@@ -188,6 +183,11 @@ namespace DATAFILTER
                     textBox.SelectAll();
                     textBox.SelectionFont = new Font(textBox.Font, FontStyle.Regular);
                     textBox.DeselectAll();
+
+                    if (textBox == inputTextBox)
+                        isInputPlaceholder = false;
+                    else
+                        isResultPlaceholder = false;
                 }
             };
 
@@ -201,8 +201,60 @@ namespace DATAFILTER
                     textBox.SelectAll();
                     textBox.SelectionFont = new Font(textBox.Font, FontStyle.Italic);
                     textBox.DeselectAll();
+
+                    if (textBox == inputTextBox)
+                        isInputPlaceholder = true;
+                    else
+                        isResultPlaceholder = true;
                 }
             };
+        }
+
+        private void InputTextBox_TextChanged(object sender, EventArgs e)
+        {
+            // Cập nhật số lượng ngay lập tức (nhẹ)
+            UpdateLineCount();
+
+            // Delay việc áp dụng màu
+            textChangedTimer?.Dispose();
+            textChangedTimer = new System.Threading.Timer(_ =>
+            {
+                this.Invoke(new Action(() =>
+                {
+                    if (inputTextBox.Lines.Length < 500) // Chỉ áp dụng màu nếu ít dòng
+                    {
+                        ApplyAlternatingColors(inputTextBox);
+                    }
+                }));
+            }, null, 200, Timeout.Infinite);
+        }
+
+        private void ResultTextBox_TextChanged(object sender, EventArgs e)
+        {
+            UpdateLineCount();          
+        }
+
+        private void SetTextWithIndent(RichTextBox textBox, string text)
+        {
+            textBox.SuspendLayout();
+
+            // ✅ Thêm một dòng trống vào cuối để tạo dòng mới
+            textBox.Text = text + Environment.NewLine;
+
+            // ✅ Đặt con trỏ xuống đầu dòng mới (cuối cùng)
+            textBox.Select(textBox.Text.Length, 0);
+            textBox.ScrollToCaret();
+
+            // Áp dụng thụt lề
+            textBox.SelectAll();
+            textBox.SelectionIndent = 0;
+            textBox.SelectionRightIndent = 0;
+
+            // ✅ Giữ con trỏ ở cuối (đầu dòng mới)
+            textBox.Select(textBox.Text.Length, 0);
+            textBox.ScrollToCaret();
+
+            textBox.ResumeLayout();
         }
         #endregion
 
@@ -212,8 +264,8 @@ namespace DATAFILTER
         // ============================================
         private void InputTextBox_MouseClick(object sender, MouseEventArgs e)
         {
-            // Bỏ qua nếu đang hiển thị placeholder
-            if (inputTextBox.ForeColor == Color.Gray)
+            // SỬA ĐỔI: Sử dụng biến isInputPlaceholder thay vì kiểm tra màu
+            if (isInputPlaceholder)
                 return;
 
             try
@@ -265,8 +317,8 @@ namespace DATAFILTER
         // ============================================
         private void ResultTextBox_MouseClick(object sender, MouseEventArgs e)
         {
-            // Bỏ qua nếu đang hiển thị placeholder
-            if (resultTextBox.ForeColor == Color.Gray)
+            // Sử dụng biến isResultPlaceholder thay vì kiểm tra màu
+            if (isResultPlaceholder)
                 return;
 
             try
@@ -387,7 +439,8 @@ namespace DATAFILTER
                 System.Diagnostics.Debug.WriteLine($"Lỗi HighlightLineWithColor: {ex.Message}");
             }
         }
-        //Đảm bảo dòng hiển thị ở vị trí mong muốn (1/3 từ trên xuống)
+
+        //Đảm bảo dòng hiển thị ở vị trí mong muốn (1/2 từ trên xuống)
         private void EnsureLineIsVisible(RichTextBox textBox, int lineIndex)
         {
             if (lineIndex < 0 || lineIndex >= textBox.Lines.Length)
@@ -403,8 +456,8 @@ namespace DATAFILTER
 
                 if (visibleLines <= 0) return;
 
-                // Đặt dòng được chọn ở vị trí 1/3 từ trên xuống (giữa màn hình)
-                int targetLine = Math.Max(0, lineIndex - visibleLines / 3);
+                // Đặt dòng được chọn ở vị trí 1/2 từ trên xuống (giữa màn hình)
+                int targetLine = Math.Max(0, lineIndex - visibleLines / 2);
 
                 // Đảm bảo không scroll quá xa
                 int totalLines = textBox.Lines.Length;
@@ -440,7 +493,7 @@ namespace DATAFILTER
                 // Lấy chiều cao của một dòng (bao gồm cả line spacing)
                 int lineHeight = TextRenderer.MeasureText(g, "A", textBox.Font).Height;
 
-                if (lineHeight == 0) return 10; // Fallback value
+                if (lineHeight == 0) return 10; // Giá trị dự phòng
 
                 return clientHeight / lineHeight;
             }
@@ -501,14 +554,14 @@ namespace DATAFILTER
         }
 
         // ============================================
-        // PHƯƠNG THỨC TÌM VÀ HIGHLIGHT CÁC DÒNG CÓ CÙNG KEY TRONG RESULT (Đồng bộ)
+        // PHƯƠNG THỨC TÌM VÀ HIGHLIGHT CÁC DÒNG CÓ CÙNG KEY TRONG RESULT
         // ============================================
         private void HighlightResultLinesByKey(string key)
         {
             try
             {
-                // Bỏ qua nếu result đang hiển thị placeholder
-                if (resultTextBox.ForeColor == Color.Gray)
+                // SỬA ĐỔI: Sử dụng biến isResultPlaceholder
+                if (isResultPlaceholder)
                     return;
 
                 string[] resultLines = resultTextBox.Lines;
@@ -530,7 +583,7 @@ namespace DATAFILTER
         }
 
         // ============================================
-        // PHƯƠNG THỨC TÌM VÀ HIGHLIGHT CÁC DÒNG CÓ CÙNG KEY TRONG RESULT (Không đồng bộ)
+        // PHƯƠNG THỨC TÌM VÀ HIGHLIGHT CÁC DÒNG CÓ CÙNG KEY TRONG RESULT
         // ============================================
         private void HighlightResultLinesByKeyAsync(string key)
         {
@@ -538,8 +591,8 @@ namespace DATAFILTER
             {
                 try
                 {
-                    // Bỏ qua nếu result đang hiển thị placeholder
-                    if (resultTextBox.ForeColor == Color.Gray)
+                    // SỬA ĐỔI: Sử dụng biến isResultPlaceholder
+                    if (isResultPlaceholder)
                         return;
 
                     string[] resultLines = resultTextBox.Lines;
@@ -568,8 +621,8 @@ namespace DATAFILTER
         {
             try
             {
-                // Bỏ qua nếu input đang hiển thị placeholder
-                if (inputTextBox.ForeColor == Color.Gray)
+                // SỬA ĐỔI: Sử dụng biến isInputPlaceholder
+                if (isInputPlaceholder)
                     return;
 
                 string[] inputLines = inputTextBox.Lines;
@@ -599,8 +652,8 @@ namespace DATAFILTER
             {
                 try
                 {
-                    // Bỏ qua nếu input đang hiển thị placeholder
-                    if (inputTextBox.ForeColor == Color.Gray)
+                    // SỬA ĐỔI: Sử dụng biến isInputPlaceholder
+                    if (isInputPlaceholder)
                         return;
 
                     string[] inputLines = inputTextBox.Lines;
@@ -628,18 +681,14 @@ namespace DATAFILTER
         {
             // Đếm số dòng input (bỏ qua placeholder)
             int inputLines = 0;
-            if (!string.IsNullOrWhiteSpace(inputTextBox.Text) &&
-                inputTextBox.Text != "Paste dữ liệu vào đây..." &&
-                inputTextBox.ForeColor != Color.Gray)
+            if (!isInputPlaceholder && !string.IsNullOrWhiteSpace(inputTextBox.Text))
             {
                 inputLines = inputTextBox.Lines.Count(line => !string.IsNullOrWhiteSpace(line));
             }
 
             // Đếm số dòng result (bỏ qua placeholder)
             int resultLines = 0;
-            if (!string.IsNullOrWhiteSpace(resultTextBox.Text) &&
-                resultTextBox.Text != "Kết quả sẽ hiển thị ở đây..." &&
-                resultTextBox.ForeColor != Color.Gray)
+            if (!isResultPlaceholder && !string.IsNullOrWhiteSpace(resultTextBox.Text))
             {
                 resultLines = resultTextBox.Lines.Count(line => !string.IsNullOrWhiteSpace(line));
             }
@@ -662,24 +711,7 @@ namespace DATAFILTER
 
         private System.Threading.Timer textChangedTimer;
 
-        private void InputTextBox_TextChanged(object sender, EventArgs e)
-        {
-            // Cập nhật số lượng ngay lập tức (nhẹ)
-            UpdateLineCount();
-
-            // Delay việc áp dụng màu
-            textChangedTimer?.Dispose();
-            textChangedTimer = new System.Threading.Timer(_ =>
-            {
-                this.Invoke(new Action(() =>
-                {
-                    if (inputTextBox.Lines.Length < 500) // Chỉ áp dụng màu nếu ít dòng
-                    {
-                        ApplyAlternatingColors(inputTextBox);
-                    }
-                }));
-            }, null, 200, Timeout.Infinite);
-        }
+        // Phương thức InputTextBox_TextChanged đã được di chuyển lên trên
 
         private void FilterButton_Click(object sender, EventArgs e)
         {
@@ -736,7 +768,12 @@ namespace DATAFILTER
                 resultTextBox.SuspendLayout();
                 resultTextBox.Clear();
                 resultTextBox.ForeColor = Color.Black;
-                resultTextBox.Text = string.Join(Environment.NewLine, filteredData);
+                isResultPlaceholder = false;
+
+                // SỬA: Sử dụng phương thức mới để set text với thụt lề
+                string resultText = string.Join(Environment.NewLine, filteredData);
+                SetTextWithIndent(resultTextBox, resultText);
+
                 ApplyAlternatingColors(resultTextBox);
                 resultTextBox.ResumeLayout();
             }
@@ -744,22 +781,22 @@ namespace DATAFILTER
         }
         #endregion
 
-        #region XỬ LÝ NÚT CLEAR VÀ EXPORT
+        #region NÚT CLEAR VÀ EXPORT THÀNH FILE
         private void ClearButton_Click(object sender, EventArgs e)
         {
             inputTextBox.Clear();
             resultTextBox.Clear();
             SetPlaceholder(inputTextBox, "Paste dữ liệu vào đây...");
             SetPlaceholder(resultTextBox, "Kết quả sẽ hiển thị ở đây...");
+            isInputPlaceholder = true;
+            isResultPlaceholder = true;
             UpdateLineCount();//Cập nhật lại số dòng
         }
 
         private void ExportButton_Click(object sender, EventArgs e)
         {
             // Kiểm tra có dữ liệu để xuất không
-            if (string.IsNullOrWhiteSpace(resultTextBox.Text) ||
-                resultTextBox.Text == "Kết quả sẽ hiển thị ở đây..." ||
-                resultTextBox.ForeColor == Color.Gray)
+            if (isResultPlaceholder || string.IsNullOrWhiteSpace(resultTextBox.Text))
             {
                 MessageBox.Show("Không có dữ liệu để xuất!", "Thông báo",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -798,7 +835,7 @@ namespace DATAFILTER
                 {
                     try
                     {
-                        // SỬA: Sử dụng phương pháp đúng để lấy text với các dòng mới
+                        // Sử dụng phương pháp đúng để lấy text với các dòng mới
                         string textToSave = resultTextBox.Text;
 
                         // Đảm bảo ký tự xuống dòng đúng định dạng
@@ -806,7 +843,7 @@ namespace DATAFILTER
 
                         File.WriteAllText(saveDialog.FileName, textToSave, Encoding.UTF8);
 
-                        // THÊM: Hiển thị message box với nút mở thư mục
+                        // Hiển thị message box với nút mở thư mục
                         ShowExportSuccessMessage(saveDialog.FileName);
                     }
                     catch (Exception ex)
@@ -817,11 +854,11 @@ namespace DATAFILTER
                 }
             }
         }
+
         // PHƯƠNG THỨC HIỂN THỊ THÔNG BÁO THÀNH CÔNG
         private void ShowExportSuccessMessage(string filePath)
         {
             string fileName = Path.GetFileName(filePath);
-
             using (var customForm = new System.Windows.Forms.Form())
             {
                 customForm.Text = "Xuất File Thành Công";
@@ -860,7 +897,7 @@ namespace DATAFILTER
                     Size = new System.Drawing.Size(350, 20),
                     TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
                     Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0))),
-                    ForeColor = System.Drawing.Color.Purple
+                    ForeColor = System.Drawing.Color.Green
                 };
 
                 // Label câu hỏi
@@ -902,12 +939,10 @@ namespace DATAFILTER
                 customForm.Controls.Add(label3);
                 customForm.Controls.Add(yesButton);
                 customForm.Controls.Add(noButton);
-
                 customForm.AcceptButton = yesButton;
                 customForm.CancelButton = noButton;
 
                 var result = customForm.ShowDialog();
-
                 if (result == System.Windows.Forms.DialogResult.Yes)
                 {
                     try
@@ -1156,24 +1191,27 @@ namespace DATAFILTER
             // Sắp xếp theo thứ tự ban đầu
             return selected.OrderBy(idx => idx).ToList();
         }
+        #endregion
     }
-    #endregion
 
-// Phương pháp mở rộng để lấy dòng đầu tiên hiển thị
-public static class RichTextBoxExtensions
-{
-    public static int GetFirstVisibleLineIndex(this RichTextBox rtb)
+    #region CLASS MỞ RỘNG
+    // Phương pháp mở rộng để lấy dòng đầu tiên hiển thị
+    public static class RichTextBoxExtensions
+    {
+        public static int GetFirstVisibleLineIndex(this RichTextBox rtb)
         {
-         return rtb.GetLineFromCharIndex(rtb.GetCharIndexFromPosition(new Point(0, 0)));
+            return rtb.GetLineFromCharIndex(rtb.GetCharIndexFromPosition(new Point(0, 0)));
+        }
+    } // Kết thúc class RichTextBoxExtensions
+
+    public class CustomRichTextBox : RichTextBox
+    {
+        public CustomRichTextBox()
+        {
+            this.SetStyle(ControlStyles.AllPaintingInWmPaint |
+                         ControlStyles.UserPaint |
+                         ControlStyles.DoubleBuffer, true);
         }
     }
-}
-public class CustomRichTextBox : RichTextBox
-{
-    public CustomRichTextBox()
-    {
-        this.SetStyle(ControlStyles.AllPaintingInWmPaint |
-                     ControlStyles.UserPaint |
-                     ControlStyles.DoubleBuffer, true);
-    }
+    #endregion
 }
