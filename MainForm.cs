@@ -808,7 +808,7 @@ namespace DATAFILTER
             {
                 saveDialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
                 saveDialog.DefaultExt = "txt";
-                saveDialog.FileName = $"KetQua_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+                saveDialog.FileName = $"TOA_DO_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
                 saveDialog.Title = "Xuất dữ liệu ra file";
 
                 // Thiết lập thư mục mặc định
