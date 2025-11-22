@@ -23,7 +23,8 @@ namespace DATAFILTER
         private int lastHighlightedLineInput = -1;
         private int lastHighlightedLineResult = -1;
         private const int LARGE_DATA_THRESHOLD = 5000;
-
+        private List<int> lastHighlightedLinesInput = new List<int>();
+        private List<int> lastHighlightedLinesResult = new List<int>();
         // Biến để theo dõi trạng thái placeholder
         private bool isInputPlaceholder = true;
         private bool isResultPlaceholder = true;
@@ -395,6 +396,9 @@ namespace DATAFILTER
         // ============================================
         // PHƯƠNG THỨC HIGHLIGHT MỘT DÒNG BẰNG TÔ MÀU NỀN (Đồng bộ)
         // ============================================
+        // ============================================
+        // PHƯƠNG THỨC HIGHLIGHT MỘT DÒNG BẰNG TÔ MÀU NỀN (Đồng bộ)
+        // ============================================
         private void HighlightLineWithColor(RichTextBox textBox, int lineIndex, bool isInputBox)
         {
             try
@@ -402,23 +406,31 @@ namespace DATAFILTER
                 if (lineIndex < 0 || lineIndex >= textBox.Lines.Length)
                     return;
 
-                // Lấy lastHighlightedLine tương ứng
-                int lastHighlightedLine = isInputBox ? lastHighlightedLineInput : lastHighlightedLineResult;
+                // Lấy danh sách highlight cũ tương ứng
+                List<int> lastHighlightedLines = isInputBox ? lastHighlightedLinesInput : lastHighlightedLinesResult;
 
-                // Clear highlight cũ
-                if (lastHighlightedLine >= 0 && lastHighlightedLine < textBox.Lines.Length)
+                // Clear TẤT CẢ highlight cũ
+                foreach (int oldLine in lastHighlightedLines)
                 {
-                    int oldStartIndex = textBox.GetFirstCharIndexFromLine(lastHighlightedLine);
-                    if (oldStartIndex >= 0)
+                    if (oldLine >= 0 && oldLine < textBox.Lines.Length)
                     {
-                        textBox.Select(oldStartIndex, textBox.Lines[lastHighlightedLine].Length);
-                        textBox.SelectionBackColor = textBox.BackColor; // Sử dụng màu nền mặc định
+                        int oldStartIndex = textBox.GetFirstCharIndexFromLine(oldLine);
+                        if (oldStartIndex >= 0)
+                        {
+                            textBox.Select(oldStartIndex, textBox.Lines[oldLine].Length);
+                            textBox.SelectionBackColor = textBox.BackColor; // Sử dụng màu nền mặc định
+                        }
                     }
                 }
 
+                // Clear danh sách cũ
+                if (isInputBox)
+                    lastHighlightedLinesInput.Clear();
+                else
+                    lastHighlightedLinesResult.Clear();
+
                 // Highlight dòng mới
                 int startIndex = textBox.GetFirstCharIndexFromLine(lineIndex);
-                // Trong HighlightLineWithColor, phần highlight dòng mới:
                 if (startIndex >= 0)
                 {
                     textBox.Select(startIndex, textBox.Lines[lineIndex].Length);
@@ -428,11 +440,17 @@ namespace DATAFILTER
                     EnsureLineIsVisible(textBox, lineIndex);
                 }
 
-                // Cập nhật lastHighlightedLine
+                // Cập nhật lastHighlightedLine và thêm vào danh sách
                 if (isInputBox)
+                {
                     lastHighlightedLineInput = lineIndex;
+                    lastHighlightedLinesInput.Add(lineIndex);
+                }
                 else
+                {
                     lastHighlightedLineResult = lineIndex;
+                    lastHighlightedLinesResult.Add(lineIndex);
+                }
             }
             catch (Exception ex)
             {
@@ -502,6 +520,9 @@ namespace DATAFILTER
         // ============================================
         // PHƯƠNG THỨC HIGHLIGHT MỘT DÒNG BẰNG TÔ MÀU NỀN (Không đồng bộ)
         // ============================================
+        // ============================================
+        // PHƯƠNG THỨC HIGHLIGHT MỘT DÒNG BẰNG TÔ MÀU NỀN (Không đồng bộ)
+        // ============================================
         private void HighlightLineWithColorAsync(RichTextBox textBox, int lineIndex, bool isInputBox)
         {
             System.Threading.ThreadPool.QueueUserWorkItem(_ =>
@@ -516,19 +537,28 @@ namespace DATAFILTER
                         {
                             try
                             {
-                                // Lấy lastHighlightedLine tương ứng
-                                int lastHighlightedLine = isInputBox ? lastHighlightedLineInput : lastHighlightedLineResult;
+                                // Lấy danh sách highlight cũ tương ứng
+                                List<int> lastHighlightedLines = isInputBox ? lastHighlightedLinesInput : lastHighlightedLinesResult;
 
-                                // Clear highlight cũ
-                                if (lastHighlightedLine >= 0 && lastHighlightedLine < textBox.Lines.Length)
+                                // Clear TẤT CẢ highlight cũ
+                                foreach (int oldLine in lastHighlightedLines)
                                 {
-                                    int oldStartIndex = textBox.GetFirstCharIndexFromLine(lastHighlightedLine);
-                                    if (oldStartIndex >= 0)
+                                    if (oldLine >= 0 && oldLine < textBox.Lines.Length)
                                     {
-                                        textBox.Select(oldStartIndex, textBox.Lines[lastHighlightedLine].Length);
-                                        textBox.SelectionBackColor = Color.White;
+                                        int oldStartIndex = textBox.GetFirstCharIndexFromLine(oldLine);
+                                        if (oldStartIndex >= 0)
+                                        {
+                                            textBox.Select(oldStartIndex, textBox.Lines[oldLine].Length);
+                                            textBox.SelectionBackColor = Color.White;
+                                        }
                                     }
                                 }
+
+                                // Clear danh sách cũ
+                                if (isInputBox)
+                                    lastHighlightedLinesInput.Clear();
+                                else
+                                    lastHighlightedLinesResult.Clear();
 
                                 // Highlight dòng mới
                                 int startIndex = textBox.GetFirstCharIndexFromLine(lineIndex);
@@ -539,11 +569,17 @@ namespace DATAFILTER
                                     textBox.ScrollToCaret();
                                 }
 
-                                // Cập nhật lastHighlightedLine
+                                // Cập nhật lastHighlightedLine và thêm vào danh sách
                                 if (isInputBox)
+                                {
                                     lastHighlightedLineInput = lineIndex;
+                                    lastHighlightedLinesInput.Add(lineIndex);
+                                }
                                 else
+                                {
                                     lastHighlightedLineResult = lineIndex;
+                                    lastHighlightedLinesResult.Add(lineIndex);
+                                }
                             }
                             catch { }
                         }));
@@ -565,15 +601,49 @@ namespace DATAFILTER
                     return;
 
                 string[] resultLines = resultTextBox.Lines;
+                List<int> matchingLines = new List<int>();
 
+                // Tìm tất cả các dòng có cùng key
                 for (int i = 0; i < resultLines.Length; i++)
                 {
                     string lineKey = ExtractKeyFromLine(resultLines[i]);
                     if (!string.IsNullOrWhiteSpace(lineKey) && lineKey.Equals(key, StringComparison.OrdinalIgnoreCase))
                     {
-                        HighlightLineWithColor(resultTextBox, i, false);
-                        return;
+                        matchingLines.Add(i);
                     }
+                }
+
+                // Clear tất cả highlight cũ
+                foreach (int oldLine in lastHighlightedLinesResult)
+                {
+                    if (oldLine >= 0 && oldLine < resultTextBox.Lines.Length)
+                    {
+                        int oldStartIndex = resultTextBox.GetFirstCharIndexFromLine(oldLine);
+                        if (oldStartIndex >= 0)
+                        {
+                            resultTextBox.Select(oldStartIndex, resultTextBox.Lines[oldLine].Length);
+                            resultTextBox.SelectionBackColor = resultTextBox.BackColor;
+                        }
+                    }
+                }
+
+                // Highlight tất cả các dòng tìm thấy
+                if (matchingLines.Count > 0)
+                {
+                    foreach (int lineIndex in matchingLines)
+                    {
+                        int startIndex = resultTextBox.GetFirstCharIndexFromLine(lineIndex);
+                        if (startIndex >= 0)
+                        {
+                            resultTextBox.Select(startIndex, resultTextBox.Lines[lineIndex].Length);
+                            resultTextBox.SelectionBackColor = Color.Orange;
+                        }
+                    }
+
+                    // Scroll đến dòng đầu tiên và cập nhật lastHighlightedLines
+                    EnsureLineIsVisible(resultTextBox, matchingLines[0]);
+                    lastHighlightedLineResult = matchingLines[0];
+                    lastHighlightedLinesResult = new List<int>(matchingLines);
                 }
             }
             catch (Exception ex)
@@ -596,15 +666,63 @@ namespace DATAFILTER
                         return;
 
                     string[] resultLines = resultTextBox.Lines;
+                    List<int> matchingLines = new List<int>();
 
+                    // Tìm tất cả các dòng có cùng key
                     for (int i = 0; i < resultLines.Length; i++)
                     {
                         string lineKey = ExtractKeyFromLine(resultLines[i]);
                         if (!string.IsNullOrWhiteSpace(lineKey) && lineKey.Equals(key, StringComparison.OrdinalIgnoreCase))
                         {
-                            HighlightLineWithColorAsync(resultTextBox, i, false);
-                            return;
+                            matchingLines.Add(i);
                         }
+                    }
+
+                    // Invoke về UI thread để thực hiện highlight
+                    if (matchingLines.Count > 0)
+                    {
+                        this.Invoke(new Action(() =>
+                        {
+                            try
+                            {
+                                // Clear tất cả highlight cũ
+                                foreach (int oldLine in lastHighlightedLinesResult)
+                                {
+                                    if (oldLine >= 0 && oldLine < resultTextBox.Lines.Length)
+                                    {
+                                        int oldStartIndex = resultTextBox.GetFirstCharIndexFromLine(oldLine);
+                                        if (oldStartIndex >= 0)
+                                        {
+                                            resultTextBox.Select(oldStartIndex, resultTextBox.Lines[oldLine].Length);
+                                            resultTextBox.SelectionBackColor = Color.White;
+                                        }
+                                    }
+                                }
+
+                                // Highlight tất cả các dòng tìm thấy
+                                foreach (int lineIndex in matchingLines)
+                                {
+                                    int startIndex = resultTextBox.GetFirstCharIndexFromLine(lineIndex);
+                                    if (startIndex >= 0)
+                                    {
+                                        resultTextBox.Select(startIndex, resultTextBox.Lines[lineIndex].Length);
+                                        resultTextBox.SelectionBackColor = Color.Yellow;
+                                    }
+                                }
+
+                                // Scroll đến dòng đầu tiên
+                                int firstLineStart = resultTextBox.GetFirstCharIndexFromLine(matchingLines[0]);
+                                if (firstLineStart >= 0)
+                                {
+                                    resultTextBox.Select(firstLineStart, 0);
+                                    resultTextBox.ScrollToCaret();
+                                }
+
+                                lastHighlightedLineResult = matchingLines[0];
+                                lastHighlightedLinesResult = new List<int>(matchingLines);
+                            }
+                            catch { }
+                        }));
                     }
                 }
                 catch (Exception ex)
@@ -626,15 +744,49 @@ namespace DATAFILTER
                     return;
 
                 string[] inputLines = inputTextBox.Lines;
+                List<int> matchingLines = new List<int>();
 
+                // Tìm tất cả các dòng có cùng key
                 for (int i = 0; i < inputLines.Length; i++)
                 {
                     string lineKey = ExtractKeyFromLine(inputLines[i]);
                     if (!string.IsNullOrWhiteSpace(lineKey) && lineKey.Equals(key, StringComparison.OrdinalIgnoreCase))
                     {
-                        HighlightLineWithColor(inputTextBox, i, true);
-                        return;
+                        matchingLines.Add(i);
                     }
+                }
+
+                // Clear tất cả highlight cũ
+                foreach (int oldLine in lastHighlightedLinesInput)
+                {
+                    if (oldLine >= 0 && oldLine < inputTextBox.Lines.Length)
+                    {
+                        int oldStartIndex = inputTextBox.GetFirstCharIndexFromLine(oldLine);
+                        if (oldStartIndex >= 0)
+                        {
+                            inputTextBox.Select(oldStartIndex, inputTextBox.Lines[oldLine].Length);
+                            inputTextBox.SelectionBackColor = inputTextBox.BackColor;
+                        }
+                    }
+                }
+
+                // Highlight tất cả các dòng tìm thấy
+                if (matchingLines.Count > 0)
+                {
+                    foreach (int lineIndex in matchingLines)
+                    {
+                        int startIndex = inputTextBox.GetFirstCharIndexFromLine(lineIndex);
+                        if (startIndex >= 0)
+                        {
+                            inputTextBox.Select(startIndex, inputTextBox.Lines[lineIndex].Length);
+                            inputTextBox.SelectionBackColor = Color.Orange;
+                        }
+                    }
+
+                    // Scroll đến dòng đầu tiên và cập nhật lastHighlightedLines
+                    EnsureLineIsVisible(inputTextBox, matchingLines[0]);
+                    lastHighlightedLineInput = matchingLines[0];
+                    lastHighlightedLinesInput = new List<int>(matchingLines);
                 }
             }
             catch (Exception ex)
@@ -657,15 +809,63 @@ namespace DATAFILTER
                         return;
 
                     string[] inputLines = inputTextBox.Lines;
+                    List<int> matchingLines = new List<int>();
 
+                    // Tìm tất cả các dòng có cùng key
                     for (int i = 0; i < inputLines.Length; i++)
                     {
                         string lineKey = ExtractKeyFromLine(inputLines[i]);
                         if (!string.IsNullOrWhiteSpace(lineKey) && lineKey.Equals(key, StringComparison.OrdinalIgnoreCase))
                         {
-                            HighlightLineWithColorAsync(inputTextBox, i, true);
-                            return;
+                            matchingLines.Add(i);
                         }
+                    }
+
+                    // Invoke về UI thread để thực hiện highlight
+                    if (matchingLines.Count > 0)
+                    {
+                        this.Invoke(new Action(() =>
+                        {
+                            try
+                            {
+                                // Clear tất cả highlight cũ
+                                foreach (int oldLine in lastHighlightedLinesInput)
+                                {
+                                    if (oldLine >= 0 && oldLine < inputTextBox.Lines.Length)
+                                    {
+                                        int oldStartIndex = inputTextBox.GetFirstCharIndexFromLine(oldLine);
+                                        if (oldStartIndex >= 0)
+                                        {
+                                            inputTextBox.Select(oldStartIndex, inputTextBox.Lines[oldLine].Length);
+                                            inputTextBox.SelectionBackColor = Color.White;
+                                        }
+                                    }
+                                }
+
+                                // Highlight tất cả các dòng tìm thấy
+                                foreach (int lineIndex in matchingLines)
+                                {
+                                    int startIndex = inputTextBox.GetFirstCharIndexFromLine(lineIndex);
+                                    if (startIndex >= 0)
+                                    {
+                                        inputTextBox.Select(startIndex, inputTextBox.Lines[lineIndex].Length);
+                                        inputTextBox.SelectionBackColor = Color.Yellow;
+                                    }
+                                }
+
+                                // Scroll đến dòng đầu tiên
+                                int firstLineStart = inputTextBox.GetFirstCharIndexFromLine(matchingLines[0]);
+                                if (firstLineStart >= 0)
+                                {
+                                    inputTextBox.Select(firstLineStart, 0);
+                                    inputTextBox.ScrollToCaret();
+                                }
+
+                                lastHighlightedLineInput = matchingLines[0];
+                                lastHighlightedLinesInput = new List<int>(matchingLines);
+                            }
+                            catch { }
+                        }));
                     }
                 }
                 catch (Exception ex)
